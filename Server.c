@@ -14,15 +14,22 @@
 #include "Database/DataBase.h"
 #include "Database/FileStream.h"
 
+
+struct
+{
+	struct pollfd c[50];
+	int timeouts[50];
+} Connections;
+
 struct Vector* streams;
 struct Vector* connections;
 
 int sockfd;
 int running = 0;
 int buffer_command_size = 2048; // 2 kb for commands
-int buffer_size = 131072; // 128 kb for data
+int buffer_size = 262144; // 256 kb for data
 char* buffer;
-int listen_count = 10;
+int listen_count = 50;
 
 pthread_t qthread;
 
@@ -86,7 +93,7 @@ int StartServer()
 	UploadInMemory();
 
 	streams = CreateVector(sizeof(struct Stream));
-	connections = CreateVector(sizeof(struct pollfd));
+	//connections = CreateVector(sizeof(struct pollfd));
 
 	printf("Server started!\n");
 	if(pthread_create(&qthread, NULL, &QueueProccessor, NULL) != 0)
@@ -104,13 +111,25 @@ int StartServer()
 			sleep(1);
 			continue;
 		}
-		struct pollfd* pollfd = malloc(sizeof(pollfd));
-		pollfd->fd = new_fd;
-		pollfd->events = POLLIN;
 
-		printf("Added new connection to the queue\n");
-		printf("New socket is %d, at %d\n", pollfd->fd, connections->Size);
-		Push(connections, pollfd);
+		for(int i = 0; i < listen_count; i++)
+		{
+			if(Connections.c[i].fd == 0)
+			{
+				Connections.c[i].fd = new_fd;
+				Connections.c[i].events = POLLIN;
+				Connections.timeouts[i] = 0;
+				printf("Added new connection to the queue\n");
+				printf("New socket is %d, at %d\n", new_fd, i);
+				break;
+			}
+		}
+
+		//struct pollfd* pollfd = malloc(sizeof(pollfd));
+		//pollfd->fd = new_fd;
+		//pollfd->events = POLLIN;
+
+		//Push(connections, pollfd);
 	}
 	
 	pthread_join(qthread, NULL);
@@ -193,7 +212,7 @@ void QueueProccessor()
 	printf("Thread started!\n");
 	while(running)
 	{
-		int poll_count = poll(connections->pData, connections->Size, 1);
+		int poll_count = poll(Connections.c, listen_count, 1);
 
 		if (poll_count == -1)
 		{
@@ -201,16 +220,31 @@ void QueueProccessor()
 			continue;
 		}
 
-		for(int i = 0; i < connections->Size; i++)
+		for(int i = 0; i < listen_count; i++)
 		{
-			struct pollfd* pfds = Get(connections, i);
+			if(Connections.c[i].fd == 0)
+				continue;
+
+			struct pollfd* pfds = &Connections.c[i];
 			if(pfds->revents & POLLIN)
 			{
 				if(Recieve(&pfds->fd, buffer_command_size) > 0)
 				{
+					Connections.timeouts[i] = 0;
 					if(ExecuteCommands(&pfds->fd) == -1)
 						break;
 				}
+			}
+			else
+			{
+				if(Connections.timeouts[i]++ == 5000)
+				{
+					printf("Close connections %d, at %d\n", Connections.c[i].fd, i);
+					close(Connections.c[i].fd);
+					Connections.c[i].fd = 0;
+					Connections.timeouts[i] = 0;
+				}
+
 			}
 		}
 	}

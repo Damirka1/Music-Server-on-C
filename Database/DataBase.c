@@ -10,6 +10,8 @@
 struct Vector* Authors;
 struct Vector* Tracks;
 char RootPath[1024] = "Database/Musics";
+char TrackFile[] = "Track.mp3";
+long long Id = 0;
 
 enum Dirs
 {
@@ -49,7 +51,7 @@ int _CheckDirs(int* it, char* Directory)
 			if(*it == Author)
 			{
 				// Load authors.
-				printf("Author: %s\n", dent->d_name);
+				//printf("Author: %s\n", dent->d_name);
 				struct Author Ar;
 				memset(Ar.Name, 0, 128);
 				memcpy(Ar.Name, dent->d_name, 128);
@@ -60,7 +62,7 @@ int _CheckDirs(int* it, char* Directory)
 			else if (*it == Album)
 			{
 				// Load albums.
-				printf("Album: %s\n", dent->d_name);
+				//printf("Album: %s\n", dent->d_name);
 				struct Album Am;
 					
 				memset(Am.Title, 0, 128);
@@ -72,6 +74,32 @@ int _CheckDirs(int* it, char* Directory)
 
 				Push(Ar->Albums, &Am);
 
+			}
+			else if(*it == Music)
+			{
+				// load music file
+				printf("Music: %s\n", dent->d_name);
+				struct Music Mc;
+				memset(Mc.Title, 0, 128);
+				memcpy(Mc.Title, dent->d_name, 128);
+
+				struct Author* Ar = Get(Authors, Authors->Size - 1);
+				struct Album* Am = Get(Ar->Albums, Ar->Albums->Size - 1);
+				Mc.Album = Am;
+				Push(Am->Musics, &Mc);
+
+				struct Track Tr;
+				memset(Tr.Path, 0, sizeof(Tr.Path));
+				memcpy(Tr.Path, RootPath, strlen(RootPath));
+				Tr.Path[strlen(Tr.Path)] = '/';
+				memcpy(Tr.Path + strlen(Tr.Path), dent->d_name, strlen(dent->d_name));
+				Tr.Path[strlen(Tr.Path)] = '/';
+				memcpy(Tr.Path + strlen(Tr.Path), TrackFile, strlen(TrackFile));
+				memcpy(Tr.Title, Mc.Title, sizeof(Mc.Title));
+				memcpy(Tr.Author, Ar->Name, sizeof(Ar->Name));
+				Tr.Id = Id++;
+			
+				Push(Tracks, &Tr);
 			}
 
 
@@ -89,24 +117,7 @@ int _CheckDirs(int* it, char* Directory)
 		{
 			if(*it == File)
 			{
-				// load music file
-				printf("Music: %s\n", dent->d_name);
-				struct Music Mc;
-				memset(Mc.Title, 0, 128);
-				memcpy(Mc.Title, dent->d_name, 128);
-
-				struct Author* Ar = Get(Authors, Authors->Size - 1);
-				struct Album* Am = Get(Ar->Albums, Ar->Albums->Size - 1);
-				Mc.Album = Am;
-				Push(Am->Musics, &Mc);
-
-				struct Track Tr;
-				memset(Tr.Path, 0, 1024);
-				memcpy(Tr.Path, RootPath, strlen(RootPath));
-				Tr.Path[strlen(RootPath)] = '/';
-				memcpy(Tr.Path + strlen(Tr.Path), dent->d_name, strlen(dent->d_name));
-				Push(Tracks, &Tr);
-
+				// load track's info.
 
 			}
 			else if (*it == Music)
@@ -232,6 +243,7 @@ void UploadInMemory()
 
 void Test(void* pData, unsigned long dSize)
 {
+	/*
 	unsigned long it = 0;
 	short type, size;
 
@@ -287,13 +299,17 @@ void Test(void* pData, unsigned long dSize)
 	}
 	
 	printf("Iterator: %ld\n", it);
+	*/
 
 
 	for(int i = 0; i < Tracks->Size; i++)
 	{
 		struct Track* Tr = Get(Tracks, i);
-
-		printf("%s\n", Tr->Path);
+		
+		printf("Id: %i\n", Tr->Id);
+		printf("Path: %s\n", Tr->Path);
+		printf("Title: %s\n", Tr->Title);
+		printf("Author: %s\n", Tr->Author);
 	}
 
 }
