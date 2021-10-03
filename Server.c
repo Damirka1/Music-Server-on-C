@@ -6,6 +6,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <unistd.h>
 #include <fcntl.h>
 #include <poll.h>
 #include <pthread.h>
@@ -14,11 +15,12 @@
 #include "Database/DataBase.h"
 #include "Database/FileStream.h"
 
+#define LISTEN 20
 
 struct
 {
-	struct pollfd c[50];
-	int timeouts[50];
+	struct pollfd c[LISTEN];
+	int timeouts[LISTEN];
 } Connections;
 
 struct Vector* streams;
@@ -27,9 +29,9 @@ struct Vector* connections;
 int sockfd;
 int running = 0;
 int buffer_command_size = 2048; // 2 kb for commands
-int buffer_size = 262144; // 256 kb for data
+int buffer_size = 131072; // 128 kb for data
 char* buffer;
-int listen_count = 50;
+int listen_count = LISTEN;
 
 pthread_t qthread;
 
@@ -96,7 +98,7 @@ int StartServer()
 	//connections = CreateVector(sizeof(struct pollfd));
 
 	printf("Server started!\n");
-	if(pthread_create(&qthread, NULL, &QueueProccessor, NULL) != 0)
+	if(pthread_create(&qthread, NULL, (void*)&QueueProccessor, NULL) != 0)
 	{
 		perror("Can't create queue thread");
 		close(sockfd);
@@ -108,7 +110,7 @@ int StartServer()
 		addr_size = sizeof(their_addr);
 		if((new_fd = accept(sockfd, (struct sockaddr*)&their_addr, &addr_size)) == -1)
 		{
-			sleep(1);
+			usleep(100);
 			continue;
 		}
 
@@ -146,61 +148,63 @@ void ClearBuffer()
 }
 
 
-int Recieve(int* new_fd, int count)
+long long Recieve(int* new_fd, long long count)
 {
 	ClearBuffer();
-	int numbytes = 0;
+	long long numbytes = 0;
 	int attemps = 0;
 
-	while(numbytes != count)
+	while(numbytes < count)
 	{
 		int r = recv(*new_fd, buffer + numbytes, count - numbytes, 0);
 		if(r == -1)
 		{
-			//perror("Can't recieve data in cycle");
+			perror("Can't recieve data in cycle");
+			*new_fd = 0;
 			return -1;
 		}
 		else if(r == 0)
 		{
 			if(attemps++ == 5)
 				return -1;
-			usleep(100);
+			usleep(10);
 			continue;
 		}
 
 		numbytes += r;
 	}
 
-	printf("Recieved %d\n", numbytes);
+	printf("Recieved %lld\n", numbytes);
 
 	return numbytes;
 }
 
-int Send(int* new_fd, int count)
+long long Send(int* new_fd, long long count)
 {
 	int attemps = 0;
-	int numbytes = 0;
+	long long numbytes = 0;
 
 	while(numbytes < count)
 	{
-		int r = send(*new_fd, buffer + numbytes, count - numbytes, MSG_CONFIRM);
+		int r = send(*new_fd, buffer + numbytes, count - numbytes, 0);
 		if(r == -1)
 		{
 			perror("Can't send data in cycle");
+			*new_fd = 0;
 			return -1;
 		}
 		else if(r == 0)
 		{
 			if(attemps++ == 5)
 				return -1;
-			usleep(100);
+			usleep(10);
 			continue;
 		}
 
 		numbytes += r;
 	}
 
-	printf("Data sended %d\n", numbytes);
+	printf("Data sended %lld\n", numbytes);
 
 	ClearBuffer();
 	return numbytes;
@@ -232,12 +236,12 @@ void QueueProccessor()
 				{
 					Connections.timeouts[i] = 0;
 					if(ExecuteCommands(&pfds->fd) == -1)
-						break;
+						return;
 				}
 			}
 			else
 			{
-				if(Connections.timeouts[i]++ == 5000)
+				if(Connections.timeouts[i]++ == 1000)
 				{
 					printf("Close connections %d, at %d\n", Connections.c[i].fd, i);
 					close(Connections.c[i].fd);
@@ -257,7 +261,7 @@ void QueueProccessor()
 int ExecuteCommands(int* new_fd)
 {
 	if(strlen(buffer) == 0)
-		return;
+		return -1;
 
 	//struct pollfd poll_send;
 	//poll_send.fd = *new_fd;
@@ -294,7 +298,7 @@ int ExecuteCommands(int* new_fd)
 		Send(new_fd, buffer_command_size);
 		return 0;
 	}
-	else if(strcmp(buffer, "check") == 0)
+	else if(strcmp(buffer, "TestConnection") == 0)
 	{
 		strcpy(buffer, "success\n");
 		Send(new_fd, buffer_command_size);
@@ -319,11 +323,11 @@ int ExecuteCommands(int* new_fd)
 
 		long long it = 0;
 		long long copysize = datasize;
-		printf("copy size %d\n", copysize);
+		printf("copy size %lld\n", copysize);
 		if(copysize > buffer_size)
 			copysize = buffer_size;
 
-		while(it != datasize)
+		while(it < datasize)
 		{
 			ClearBuffer();
 			if(it + copysize > datasize)
@@ -378,7 +382,7 @@ int ExecuteCommands(int* new_fd)
 		if(readsize > buffer_size)
 			readsize = buffer_size;
 
-		while(it != filesize)
+		while(it < filesize)
 		{
 			if(it + readsize > filesize)
 			{
@@ -497,7 +501,7 @@ int ExecuteCommands(int* new_fd)
 
 		ClearBuffer();
 
-		printf("pos %d, size %d\n", file->position, chunksize);
+		printf("pos %lld, size %lld\n", file->position, chunksize);
 
 		fseek(file->stream, file->position, SEEK_SET);
 		strcpy(buffer, "streamdata ");
@@ -535,7 +539,7 @@ int ExecuteCommands(int* new_fd)
 		if(readsize > buffer_size)
 			readsize = buffer_size;
 
-		while(it != chunksize)
+		while(it < chunksize)
 		{
 			if(it + readsize > file->filesize)
 			{
@@ -549,4 +553,5 @@ int ExecuteCommands(int* new_fd)
 			it += readsize;
 		}
 	}
+	return 0;
 }

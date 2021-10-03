@@ -90,6 +90,7 @@ int _CheckDirs(int* it, char* Directory)
 
 				struct Track Tr;
 				memset(Tr.Path, 0, sizeof(Tr.Path));
+				memset(Tr.ArtPath, 0, sizeof(Tr.ArtPath));
 				memcpy(Tr.Path, RootPath, strlen(RootPath));
 				Tr.Path[strlen(Tr.Path)] = '/';
 				memcpy(Tr.Path + strlen(Tr.Path), dent->d_name, strlen(dent->d_name));
@@ -123,6 +124,23 @@ int _CheckDirs(int* it, char* Directory)
 			else if (*it == Music)
 			{
 				// load album's images.
+				//printf("MusicArt: %s\n", dent->d_name);
+
+				/* TODO: add image path to album.
+				 * struct Author* Ar = Get(Authors, Authors->Size - 1);
+				 * struct Album* Am = Get(Ar->Albums, Ar->Albums->Size - 1);
+				*/
+				
+				struct Track* Tr = Get(Tracks, Tracks->Size - 1);
+				
+				if(dent->d_name[strlen(dent->d_name) - 1] == 'g')
+				{	
+					memset(Tr->ArtPath, 0, sizeof(Tr->Path));
+					memcpy(Tr->ArtPath, RootPath, strlen(RootPath));
+					Tr->ArtPath[strlen(Tr->ArtPath)] = '/';
+					memcpy(Tr->ArtPath + strlen(Tr->ArtPath), dent->d_name, strlen(dent->d_name));
+					printf("Result ArtPath: %s\n", Tr->ArtPath);
+				}
 			}
 		}
     	}
@@ -306,7 +324,7 @@ void Test(void* pData, unsigned long dSize)
 	{
 		struct Track* Tr = Get(Tracks, i);
 		
-		printf("Id: %i\n", Tr->Id);
+		printf("Id: %lli\n", Tr->Id);
 		printf("Path: %s\n", Tr->Path);
 		printf("Title: %s\n", Tr->Title);
 		printf("Author: %s\n", Tr->Author);
@@ -332,7 +350,9 @@ int Save()
 		FILE* file = fopen("Database/Data", "wb");
 		fwrite(AllData, DataSize, 1, file);
 		fclose(file);
+		return 0;
 	}
+	return -1;
 }
 
 

@@ -3,8 +3,8 @@
 
 int StartServer();
 
-int Send(int* new_fd, int count);
-int Recieve(int* new_fd, int count);
+long long Send(int* new_fd, long long count);
+long long Recieve(int* new_fd, long long count);
 
 void QueueProccessor();
 int ExecuteCommands(int* new_fd);

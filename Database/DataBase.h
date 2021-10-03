@@ -21,4 +21,6 @@ struct Vector* GetTracks();
 
 void ReleaseAllData();
 
+void Test(void* pData, unsigned long dSize);
+
 #endif

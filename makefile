@@ -4,3 +4,12 @@ build: Server.c
 
 run: 
 	./Server 2>&1 > log.file &
+
+ssh:
+	systemctl start sshd -p 27015
+
+statusssh:
+	systemctl status sshd
+
+stopssh:
+	systemctl stop sshd

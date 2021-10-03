@@ -4,7 +4,7 @@
 
 struct Vector* CreateVector(int DataSize)
 {
-	struct Vector* vec = malloc(sizeof(vec));
+	struct Vector* vec = malloc(sizeof(struct Vector));
 	
 	vec->pData = NULL;
 	vec->DataSize = DataSize;
